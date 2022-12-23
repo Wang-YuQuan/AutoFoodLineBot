@@ -1,9 +1,14 @@
 # AutoFoodLineBot
 <h2>
   visual code run
-  <code>
-    python manage.py runserver
-  </code>
 </h2>
+<div>
+  python manage.py runserver
+</div>
 </br>
-<code>ngrok http 8000</code>
+<h2>
+  下載Ngrok，並啟動服務
+</h2>
+<div>
+  ngrok http 8000
+</div>
