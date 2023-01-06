@@ -1,6 +1,6 @@
 from django.shortcuts import render
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
-from linebot.models import PostbackAction,URIAction, MessageAction, TemplateSendMessage, ButtonsTemplate, CarouselTemplate, CarouselColumn
+from linebot.models import PostbackAction,URIAction, MessageAction, TemplateSendMessage, ButtonsTemplate, CarouselTemplate, CarouselColumn, MessageTemplateAction
 from django.views.decorators.csrf import csrf_exempt
 from django.conf import settings
  
@@ -12,6 +12,97 @@ from urllib.parse import quote
  
 line_bot_api = LineBotApi(settings.LINE_CHANNEL_ACCESS_TOKEN)
 parser = WebhookParser(settings.LINE_CHANNEL_SECRET)
+
+def GetRequest(url, param):
+    return requests.get(url = url, params = param).json()
+
+def GetCity():
+    URL = "https://ifoodie.tw/api/location/search"
+    data = GetRequest(URL, {"q": ""})
+    _columns = []
+    _action = [MessageAction(label='Default(不選擇)', text='縣市 Default(不選擇)')]
+    for i in data['response']:
+        _action.append(
+            MessageAction(
+                label=i['city'],
+                text='縣市 ' + i['city']
+            )
+        )
+    _action.append(MessageAction(label=' ', text=' '))
+    _action.append(MessageAction(label=' ', text=' '))
+    for i in range(0,len(_action)//3):
+        _columns.append(
+            CarouselColumn(
+                text='選擇縣市',
+                actions=_action[i*3:i*3+3]
+            )
+        )
+    carousel_template_message = TemplateSendMessage(
+        alt_text='城市選單',
+        template=CarouselTemplate(
+            columns=_columns
+        )
+    )
+    return carousel_template_message
+
+def GetArea(city):
+    URL = "https://ifoodie.tw/api/location/search"
+    data = GetRequest(URL, {"q": city})
+    _columns = []
+    _action = [MessageAction(label='Default(不選擇)', text='縣市 ' + city + '\n區域 Default(不選擇)')]
+    for i in data['response']:
+        if (i['area'] != None and i['area'] != ""):
+            _action.append(
+                MessageAction(
+                    label=i['area'],
+                    text='縣市 ' + city + '\n區域 ' + i['area']
+                )
+            )
+    for i in range(0, len(_action)%3):
+        _action.append(MessageAction(label=' ', text=' '))
+    for i in range(0,len(_action)//3):
+        _columns.append(
+            CarouselColumn(
+                text='選擇區域',
+                actions=_action[i*3:i*3+3]
+            )
+        )
+    carousel_template_message = TemplateSendMessage(
+        alt_text='區域選單',
+        template=CarouselTemplate(
+            columns=_columns
+        )
+    )
+    return carousel_template_message
+
+def GetCategory(city, area):
+    URL = "https://ifoodie.tw/api/category/auto_complete"
+    data = GetRequest(URL, {"q": ""})
+    _columns = []
+    _action = [MessageAction(label='Default(不選擇)', text='縣市 ' + city + '\n區域 ' + area +'\n分類 Default(不選擇)')]
+    for i in data['response']:
+        _action.append(
+            MessageAction(
+                label=i,
+                text='縣市 ' + city + '\n區域 ' + area + '\n分類 ' + i
+            )
+        )
+    for i in range(0, len(_action)%3):
+        _action.append(MessageAction(label=' ', text=' '))
+    for i in range(0, 10):
+        _columns.append(
+            CarouselColumn(
+                text='選擇分類',
+                actions=_action[i*3:i*3+3]
+            )
+        )
+    carousel_template_message = TemplateSendMessage(
+        alt_text='分類選單',
+        template=CarouselTemplate(
+            columns=_columns
+        )
+    )
+    return carousel_template_message
 
 def CTM(data):
     _columns = []
@@ -41,7 +132,7 @@ def CTM(data):
                 )
             )
     carousel_template_message = TemplateSendMessage(
-        alt_text='Carousel template',
+        alt_text='選單',
         template=CarouselTemplate(
             columns=_columns
         )
@@ -63,25 +154,51 @@ def callback(request):
             return HttpResponseBadRequest()
         for event in events:
             if isinstance(event, MessageEvent):  # 如果有訊息事件
-                reply = ""
                 # api-endpoint
-                input = event.message.text.split(' ')
-                city = "台中市"
-                area = "沙鹿區"
-                category = "火鍋"
-                payload = {'q': category, 'city_name': city, 'area_name': area, 'limit': '10', 'order_by': 'recent'}
-                URL = "https://ifoodie.tw/api/restaurant/explore/"
-
-                # sending get request and saving the response as response object
-                r = requests.get(url = URL, params = payload)
-                # extracting data in json format
-                data = r.json()
-                line_bot_api.reply_message(  # 回復傳入的訊息文字
-                    event.reply_token,
-                    CTM(data)
-                    #TextSendMessage(text=reply)
-                    #TextSendMessage(text=event.message.text)
-                )
+                input = event.message.text.split('\n')
+                if('縣市' not in input[0]):
+                    line_bot_api.reply_message(  # 回復傳入的訊息文字
+                        event.reply_token,
+                        GetCity()
+                        #TextSendMessage(text=event.message.text)
+                    )
+                elif(len(input)==1):
+                    if(input[0][3:len(input[0])] == "Default(不選擇)"):
+                        line_bot_api.reply_message(  # 回復傳入的訊息文字
+                            event.reply_token,
+                            GetCategory('Default(不選擇)', 'Default(不選擇)')
+                            #TextSendMessage(text=event.message.text)
+                        )
+                    else:
+                        line_bot_api.reply_message(  # 回復傳入的訊息文字
+                            event.reply_token,
+                            GetArea(input[0][3:len(input[0])])
+                            #TextSendMessage(text=event.message.text)
+                        )
+                elif(len(input)==2):
+                    line_bot_api.reply_message(  # 回復傳入的訊息文字
+                        event.reply_token,
+                        GetCategory(input[0][3:len(input[0])], input[1][3:len(input[1])])
+                        #TextSendMessage(text=event.message.text)
+                    )
+                elif(len(input)==3):
+                    city = "" if input[0][3:len(input[0])]=="Default(不選擇)" else input[0][3:len(input[0])]
+                    area = "" if input[1][3:len(input[1])]=="Default(不選擇)" else input[1][3:len(input[1])]
+                    category = "" if input[2][3:len(input[2])]=="Default(不選擇)" else input[2][3:len(input[2])]
+                    payload = {'q': category, 'city_name': city, 'area_name': area, 'limit': '10', 'order_by': 'rating'}
+                    URL = "https://ifoodie.tw/api/restaurant/explore/"
+                    data = GetRequest(URL, payload)
+                    if len(data['response']) == 0:
+                        line_bot_api.reply_message(  # 回復傳入的訊息文字
+                            event.reply_token,
+                            TextSendMessage(text="無查尋條件之餐廳")
+                        )
+                    else:
+                        line_bot_api.reply_message(  # 回復傳入的訊息文字
+                            event.reply_token,
+                            CTM(data)
+                            #TextSendMessage(text=event.message.text)
+                        )
         return HttpResponse()
     else:
         return HttpResponseBadRequest()
