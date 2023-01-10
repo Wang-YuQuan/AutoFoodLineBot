@@ -104,7 +104,7 @@ def GetCategory(city, area):
     )
     return carousel_template_message
 
-def CTM(data):
+def GetRusult(data):
     _columns = []
     URL_LINK = "https://ifoodie.tw/restaurant/"
     for i in data['response']:
@@ -113,8 +113,8 @@ def CTM(data):
             _columns.append(
                 CarouselColumn(
                     thumbnail_image_url=i['cover_url'],
-                    title=i['name'] + ' ' + '\n' + 'rating:' + str(i['rating']) + '★',
-                    text=i['opening_hours'],
+                    title=i['name'] + ' ',
+                    text='rating:' + str(i['rating']) + '★\n'+ i['opening_hours'],
                     actions=[
                         # MessageAction(
                         #     label='message1',
@@ -196,7 +196,7 @@ def callback(request):
                     else:
                         line_bot_api.reply_message(  # 回復傳入的訊息文字
                             event.reply_token,
-                            CTM(data)
+                            GetRusult(data)
                             #TextSendMessage(text=event.message.text)
                         )
         return HttpResponse()
